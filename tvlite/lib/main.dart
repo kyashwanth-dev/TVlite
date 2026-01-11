@@ -4,28 +4,37 @@ import 'package:m3u_utils/m3u_utils.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 
-void main() => runApp(const IPTVApp());
+void main() {
+  runApp(const IPTVApp());
+}
 
 class IPTVApp extends StatelessWidget {
   const IPTVApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'IPTV Demo',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
       home: const ChannelListScreen(),
     );
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*                             CHANNEL LIST SCREEN                             */
+/* -------------------------------------------------------------------------- */
+
 class ChannelListScreen extends StatefulWidget {
   const ChannelListScreen({super.key});
+
   @override
   State<ChannelListScreen> createState() => _ChannelListScreenState();
 }
 
 class _ChannelListScreenState extends State<ChannelListScreen> {
-  late Future<List<MapEntry<String, Map<String, String>>>> _future;
+  late Future<List<MapEntry<String, Map<String, dynamic>>>> _future;
 
   @override
   void initState() {
@@ -33,11 +42,19 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
     _future = _loadChannels();
   }
 
-  Future<List<MapEntry<String, Map<String, String>>>> _loadChannels() async {
-    const playlistUrl = 'https://raw.githubusercontent.com/Archrootsda/iptv/master/index.m3u'; // example
+  Future<List<MapEntry<String, Map<String, dynamic>>>> _loadChannels() async {
+    const playlistUrl =
+        'https://raw.githubusercontent.com/Archrootsda/iptv/master/index.m3u';
+
     final res = await http.get(Uri.parse(playlistUrl));
-    if (res.statusCode != 200) throw Exception('Failed to fetch playlist');
-    final parsed = M3uParser.parse(res.body);
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch playlist');
+    }
+
+    // m3u_utils returns Map<String, dynamic>
+    final parsed =
+        M3uUtils.parse(res.body) as Map<String, Map<String, dynamic>>;
+
     return parsed.entries.toList();
   }
 
@@ -45,24 +62,46 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Channels')),
-      body: FutureBuilder<List<MapEntry<String, Map<String, String>>>>(
+      body: FutureBuilder<List<MapEntry<String, Map<String, dynamic>>>>(
         future: _future,
         builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snap.hasError) {
+            return Center(child: Text('Error: ${snap.error}'));
+          }
+
           final channels = snap.data!;
+
           return ListView.builder(
             itemCount: channels.length,
             itemBuilder: (context, i) {
               final entry = channels[i];
               final url = entry.key;
               final meta = entry.value;
-              final name = meta['title'] ?? 'Unknown';
+
+              final name = meta['title']?.toString() ?? 'Unknown Channel';
+
               return ListTile(
                 title: Text(name),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => PlayerScreen(url: url, title: name)),
+                subtitle: Text(
+                  url,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PlayerScreen(
+                        url: url,
+                        title: name,
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -72,32 +111,50 @@ class _ChannelListScreenState extends State<ChannelListScreen> {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                PLAYER SCREEN                                */
+/* -------------------------------------------------------------------------- */
+
 class PlayerScreen extends StatefulWidget {
   final String url;
   final String title;
-  const PlayerScreen({super.key, required this.url, required this.title});
+
+  const PlayerScreen({
+    super.key,
+    required this.url,
+    required this.title,
+  });
+
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late VideoPlayerController _vc;
-  ChewieController? _cc;
+  late VideoPlayerController _videoController;
+  ChewieController? _chewieController;
 
   @override
   void initState() {
     super.initState();
-    _vc = VideoPlayerController.network(widget.url);
-    _vc.initialize().then((_) {
-      _cc = ChewieController(videoPlayerController: _vc, autoPlay: true);
+
+    _videoController =
+        VideoPlayerController.networkUrl(Uri.parse(widget.url));
+
+    _videoController.initialize().then((_) {
+      _chewieController = ChewieController(
+        videoPlayerController: _videoController,
+        autoPlay: true,
+        allowFullScreen: true,
+        allowPlaybackSpeedChanging: true,
+      );
       setState(() {});
     });
   }
 
   @override
   void dispose() {
-    _vc.dispose();
-    _cc?.dispose();
+    _videoController.dispose();
+    _chewieController?.dispose();
     super.dispose();
   }
 
@@ -106,7 +163,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
       body: Center(
-        child: _cc == null ? const CircularProgressIndicator() : Chewie(controller: _cc!),
+        child: _chewieController == null
+            ? const CircularProgressIndicator()
+            : Chewie(controller: _chewieController!),
       ),
     );
   }
