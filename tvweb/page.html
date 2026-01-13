@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPTV Player</title>
+
+  <!-- Video.js -->
+  <link href="https://vjs.zencdn.net/8.23.4/video-js.css" rel="stylesheet" />
+  <script src="https://vjs.zencdn.net/8.23.4/video.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      background: #0f172a;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Player */
+    .player {
+      flex: 3;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: black;
+    }
+
+    /* Channel list */
+    .channels {
+      flex: 1;
+      background: #020617;
+      border-left: 1px solid #1e293b;
+      overflow-y: auto;
+    }
+
+    .channels h3 {
+      padding: 16px;
+      margin: 0;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .channel {
+      padding: 14px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .channel:hover {
+      background: #1e293b;
+    }
+
+    .channel.active {
+      background: #2563eb;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- VIDEO PLAYER -->
+  <div class="player">
+    <video
+      id="my-video"
+      class="video-js vjs-default-skin"
+      controls
+      autoplay
+      width="720"
+      height="405"
+      data-setup="{}">
+    </video>
+  </div>
+
+  <!-- CHANNEL LIST -->
+  <div class="channels">
+    <h3>Channels</h3>
+    <div id="channelList"></div>
+  </div>
+
+</div>
+
+<!-- Channel links -->
+<script src="channel_links.js"></script>
+
+<script>
+  const player = videojs('my-video');
+  const channelListDiv = document.getElementById('channelList');
+
+  function playChannel(channelKey) {
+    const url = channelLinks[channelKey];
+
+    player.src({
+      src: url,
+      type: 'application/x-mpegURL'
+    });
+    player.play();
+
+    // Highlight active channel
+    document.querySelectorAll('.channel').forEach(c => c.classList.remove('active'));
+    document.getElementById(channelKey).classList.add('active');
+  }
+
+  // Build channel list from your structure
+  Object.keys(channelLinks).forEach((key, index) => {
+    const div = document.createElement('div');
+    div.className = 'channel';
+    div.id = key;
+    div.innerText = key.toUpperCase(); // ZEETVNEWS
+    div.onclick = () => playChannel(key);
+    channelListDiv.appendChild(div);
+
+    // Auto-play first channel
+    if (index === 0) {
+      playChannel(key);
+    }
+  });
+</script>
+
+</body>
+</html>
